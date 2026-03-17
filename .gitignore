@@ -1,3 +1,4 @@
 node_modules/
-workspace/memory/
 .env
+workspace/memory/
+workspace/vectors/

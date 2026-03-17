@@ -50,9 +50,9 @@ export async function runSummarizer() {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    const summaryPrompt = `Berikut adalah log percakapan antara Dafana (user) dan Freyana (AI Agent) kemarin (${yesterdayDate}):\n\n--- [LOG PERCAKAPAN MENTAH] ---\n${oldLogContent}\n--- [END LOG] ---\n\nTugas lu:
+    const summaryPrompt = `Berikut adalah log percakapan antara User (user) dan Freyana (AI Agent) kemarin (${yesterdayDate}):\n\n--- [LOG PERCAKAPAN MENTAH] ---\n${oldLogContent}\n--- [END LOG] ---\n\nTugas lu:
 1. Analisis log tersebut dan buat ringkasan eksekutif dengan maksimal 10 poin penting.
-2. Abaikan hal-hal sepele (seperti salah ketik, error sementara). Fokus pada keputusan, tindakan penting, kode yang dibuat, file yang diubah, dan hal-hal baru yang dipelajari Dafana.
+2. Abaikan hal-hal sepele (seperti salah ketik, error sementara). Fokus pada keputusan, tindakan penting, kode yang dibuat, file yang diubah, dan hal-hal baru yang dipelajari User.
 3. Tulis ringkasan lu dengan gaya bahasa Freyana (Blak-blakan, sarkas, straight to the point).`;
 
     try {

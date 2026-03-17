@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import readline from 'readline';
 import { getSystemPrompt, readChatHistory, writeChatHistory } from './parser.js';
 import { generateResponse } from './llm.js';
+import { askClaude } from './llm_claude.js';
 import { executeCommand } from './skills/terminal/index.js';
 import { fetchWebPage } from './skills/browser/index.js';
 import { readFile, writeFileWithPermission } from './skills/filemanager/index.js';
@@ -57,6 +59,7 @@ rl.on('line', async (input) => {
             const fetchMatch = aiResponse.match(/<FETCH_URL>([\s\S]*?)<\/FETCH_URL>/);
             const readFileMatch = aiResponse.match(/<READ_FILE>([\s\S]*?)<\/READ_FILE>/);
             const writeFileMatch = aiResponse.match(/<WRITE_FILE\s+path="([^"]+)">([\s\S]*?)<\/WRITE_FILE>/);
+            const askClaudeMatch = aiResponse.match(/<ASK_CLAUDE(?:\s+context="([^"]*)")?>([\s\S]*?)<\/ASK_CLAUDE>/);
 
             if (bashMatch) {
                 const commandToRun = bashMatch[1].trim();
@@ -139,6 +142,31 @@ rl.on('line', async (input) => {
 
                 console.log(`[Freyana] ❯ ${finalResponse}`);
                 await writeChatHistory('Freyana', finalResponse);
+            } else if (askClaudeMatch) {
+                const claudeContext = askClaudeMatch[1] || '';
+                const claudeQuestion = askClaudeMatch[2].trim();
+
+                process.stdout.write(`[System] Freyana lagi konsultasi ke Claude... `);
+
+                const claudeAnswer = await askClaude(claudeQuestion, claudeContext);
+
+                await writeChatHistory('Claude', claudeAnswer);
+
+                readline.clearLine(process.stdout, 0);
+                readline.cursorTo(process.stdout, 0);
+
+                console.log(`[Claude] ❯ ${claudeAnswer}`);
+
+                chatHistory = await readChatHistory();
+                const claudeFollowUp = `[System]: Claude sudah menjawab pertanyaanmu. Berikan kesimpulan atau langkah selanjutnya ke Dafana berdasarkan jawaban Claude tersebut.`;
+
+                const claudeFinalResponse = await generateResponse(claudeFollowUp, systemPrompt, chatHistory);
+
+                readline.clearLine(process.stdout, 0);
+                readline.cursorTo(process.stdout, 0);
+
+                console.log(`[Freyana] ❯ ${claudeFinalResponse}`);
+                await writeChatHistory('Freyana', claudeFinalResponse);
             }
             
         } catch (err) {
@@ -160,3 +188,4 @@ rl.on('line', async (input) => {
     console.log("\nFreyana offline. Bye!");
     process.exit(0);
 });
+

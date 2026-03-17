@@ -1,6 +1,9 @@
+import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
-import { getSystemPrompt, readChatHistory, writeChatHistory } from './parser.js';
+import { getSystemPrompt, readChatHistory, writeChatHistory, invalidatePromptCache } from './parser.js';
 import { generateResponse } from './llm.js';
+import { askClaude } from './llm_claude.js';
+import { askDeepSeek, askQwen } from './llm_nvidia.js';
 import { executeCommand } from './skills/terminal/index.js';
 import { fetchWebPage } from './skills/browser/index.js';
 import { readFile, writeFileWithPermission } from './skills/filemanager/index.js';
@@ -43,7 +46,7 @@ async function sendLongMessage(channel, text) {
 async function askPermissionDiscord(channel, commandOrPath, actionType, previewContext = '') {
     // actionType = "TERMINAL" atau "WRITE_FILE"
     
-    let warningMsg = `⚠️ **[WARNING]** Freyana ingin mengeksekusi aksi:\n`;
+    let warningMsg = `\`[SYSTEM_OUTPUT]\`⚠️ **[WARNING]** Freyana ingin mengeksekusi aksi:\n`;
     if(actionType === 'TERMINAL') {
         warningMsg += `\`\`\`bash\n${commandOrPath}\n\`\`\``;
     } else {
@@ -81,9 +84,12 @@ client.on('ready', () => {
     console.log("==========================================");
 });
 
+// ID bot OpenClaw yang boleh dibalas Freyana
+const OPENCLAW_BOT_ID = '1472994726847451177';
+
 client.on('messageCreate', async (message) => {
-    // Abaikan pesan dari bot sendiri atau dari channel lain
-    if (message.author.bot || message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+    if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+    if (message.author.bot && message.author.id !== OPENCLAW_BOT_ID) return;
 
     const text = message.content.trim();
     if (!text) return;
@@ -92,21 +98,38 @@ client.on('messageCreate', async (message) => {
     await message.channel.sendTyping();
 
     try {
-        await writeChatHistory('Dafana', text);
+        // Deteksi reply — kalau kamu reply pesan tertentu, fetch konteks pesan itu
+        let replyContext = '';
+        if (message.reference?.messageId) {
+            try {
+                const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                replyContext = `[Dafana me-reply pesan ini]: "${repliedMsg.content}" (dari: ${repliedMsg.author.username})`;
+                console.log('[System] Reply detected:', replyContext);
+            } catch (e) {
+                console.error('[System] Gagal fetch replied message:', e.message);
+            }
+        }
 
-        let systemPrompt = await getSystemPrompt();
-        let chatHistory = await readChatHistory();
+        const fullText = replyContext ? `${replyContext}\n\n${text}` : text;
 
-        let aiResponse = await generateResponse(text, systemPrompt, chatHistory);
+        await writeChatHistory('Dafana', fullText, message.id);
+
+        let systemPrompt = await getSystemPrompt(false, text);
+        let chatHistory = await readChatHistory(text); // Pass query untuk semantic search
+
+        let aiResponse = await generateResponse(fullText, systemPrompt, chatHistory);
 
         // Jika tidak ada tag khusus, kirim langsung
-        await writeChatHistory('Freyana', aiResponse);
+        await writeChatHistory('Freyana', aiResponse, null);
 
         // Deteksi Tag
         const bashMatch = aiResponse.match(/<RUN_BASH>([\s\S]*?)<\/RUN_BASH>/);
         const fetchMatch = aiResponse.match(/<FETCH_URL>([\s\S]*?)<\/FETCH_URL>/);
         const readFileMatch = aiResponse.match(/<READ_FILE>([\s\S]*?)<\/READ_FILE>/);
         const writeFileMatch = aiResponse.match(/<WRITE_FILE\s+path="([^"]+)">([\s\S]*?)<\/WRITE_FILE>/);
+        const askClaudeMatch = aiResponse.match(/<ASK_CLAUDE(?:\s+context="([^"]*)")?>([\s\S]*?)<\/ASK_CLAUDE>/);
+        const askDeepSeekMatch = aiResponse.match(/<ASK_DEEPSEEK(?:\s+context="([^"]*)")?>([\s\S]*?)<\/ASK_DEEPSEEK>/);
+        const askQwenMatch = aiResponse.match(/<ASK_QWEN(?:\s+context="([^"]*)")?>([\s\S]*?)<\/ASK_QWEN>/);
 
         if (bashMatch) {
             const commandToRun = bashMatch[1].trim();
@@ -175,8 +198,9 @@ client.on('messageCreate', async (message) => {
             let writeResult = "[SYSTEM_LOG] Operasi WRITE file dibatalkan oleh Dafana (N).";
             
             if(isAllowed) {
-                // Eksekusi tulis file (tanpa prompt stdin lagi)
-                writeResult = await writeFileWithPermission(filePath, fileContent, true); // Modifikasi bypass
+                writeResult = await writeFileWithPermission(filePath, fileContent, true);
+                // Invalidate cache kalau Freyana nulis ke workspace
+                invalidatePromptCache();
             }
 
             const toolLog = `[SYSTEM_TOOL_RESULT]:\n${writeResult}`;
@@ -191,6 +215,63 @@ client.on('messageCreate', async (message) => {
             await writeChatHistory('Freyana', finalResponse);
             await sendLongMessage(message.channel, finalResponse);
             
+        } else if (askClaudeMatch) {
+            const claudeContext = askClaudeMatch[1] || '';
+            const claudeQuestion = askClaudeMatch[2].trim();
+
+            await message.channel.sendTyping();
+            await message.channel.send('🤖 *Freyana lagi konsultasi ke Claude...*');
+
+            const claudeAnswer = await askClaude(claudeQuestion, claudeContext);
+            await writeChatHistory('Claude', claudeAnswer);
+
+            await message.channel.send(`**[Claude]** ${claudeAnswer}`);
+
+            chatHistory = await readChatHistory();
+            const claudeFollowUp = `[System]: Claude sudah menjawab. Berikan kesimpulan atau langkah selanjutnya ke Dafana.`;
+            const finalResponse2 = await generateResponse(claudeFollowUp, systemPrompt, chatHistory);
+
+            await writeChatHistory('Freyana', finalResponse2);
+            await sendLongMessage(message.channel, finalResponse2);
+
+        } else if (askDeepSeekMatch) {
+            const dsContext = askDeepSeekMatch[1] || '';
+            const dsQuestion = askDeepSeekMatch[2].trim();
+
+            await message.channel.sendTyping();
+            await message.channel.send('🧠 *Freyana lagi konsultasi ke DeepSeek...*');
+
+            const dsAnswer = await askDeepSeek(dsQuestion, dsContext);
+            await writeChatHistory('DeepSeek', dsAnswer);
+
+            await message.channel.send(`**[DeepSeek]** ${dsAnswer}`);
+
+            chatHistory = await readChatHistory();
+            const dsFollowUp = `[System]: DeepSeek sudah menjawab. Berikan kesimpulan atau langkah selanjutnya ke Dafana.`;
+            const finalResponse3 = await generateResponse(dsFollowUp, systemPrompt, chatHistory);
+
+            await writeChatHistory('Freyana', finalResponse3);
+            await sendLongMessage(message.channel, finalResponse3);
+
+        } else if (askQwenMatch) {
+            const qwenContext = askQwenMatch[1] || '';
+            const qwenQuestion = askQwenMatch[2].trim();
+
+            await message.channel.sendTyping();
+            await message.channel.send('🧬 *Freyana lagi konsultasi ke Qwen...*');
+
+            const qwenAnswer = await askQwen(qwenQuestion, qwenContext);
+            await writeChatHistory('Qwen', qwenAnswer);
+
+            await message.channel.send(`**[Qwen]** ${qwenAnswer}`);
+
+            chatHistory = await readChatHistory();
+            const qwenFollowUp = `[System]: Qwen sudah menjawab. Berikan kesimpulan atau langkah selanjutnya ke Dafana.`;
+            const finalResponse4 = await generateResponse(qwenFollowUp, systemPrompt, chatHistory);
+
+            await writeChatHistory('Freyana', finalResponse4);
+            await sendLongMessage(message.channel, finalResponse4);
+
         } else {
              // Jika tidak mengeksekusi tool apapun
              await sendLongMessage(message.channel, aiResponse);
@@ -208,4 +289,14 @@ client.on('messageCreate', async (message) => {
         console.error("⚠️ Summarizer error:", error.message);
     }
     client.login(process.env.DISCORD_BOT_TOKEN);
+
+    // Jalanin summarizer tiap 10 menit, bukan tiap pesan
+    setInterval(async () => {
+        try {
+            await runSummarizer();
+        } catch (error) {
+            console.error("⚠️ Summarizer interval error:", error.message);
+        }
+    }, 10 * 60 * 1000);
 })();
+
