@@ -2,12 +2,12 @@
   "date": "2026-03-18",
   "models": {
     "groq": {
-      "requests": 35,
-      "tokens": 66112
+      "requests": 103,
+      "tokens": 218655
     },
     "gemini": {
-      "requests": 0,
-      "tokens": 0
+      "requests": 4,
+      "tokens": 7015
     },
     "qwen": {
       "requests": 0,
@@ -20,6 +20,14 @@
     "claude": {
       "requests": 0,
       "tokens": 0
+    },
+    "openrouter": {
+      "requests": 9,
+      "tokens": 15267
+    },
+    "nvidia": {
+      "requests": 13,
+      "tokens": 842
     }
   }
 }

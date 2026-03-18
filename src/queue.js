@@ -35,11 +35,15 @@ class RequestQueue {
     }
 }
 
-// Queue terpisah untuk Gemini dan Nvidia biar tidak deadlock
-export const geminiQueue = new RequestQueue('gemini', QUEUE.GEMINI_DELAY_MS);
-export const nvidiaQueue = new RequestQueue('nvidia', QUEUE.NVIDIA_DELAY_MS);
+// Queue terpisah per provider — hindari deadlock
+export const geminiQueue     = new RequestQueue('gemini',     QUEUE.GEMINI_DELAY_MS);
+export const nvidiaQueue     = new RequestQueue('nvidia',     QUEUE.NVIDIA_DELAY_MS);
+export const groqQueue       = new RequestQueue('groq',       QUEUE.GROQ_DELAY_MS || 300);
+export const openrouterQueue = new RequestQueue('openrouter', QUEUE.OPENROUTER_DELAY_MS || 500);
+export const claudeQueue     = new RequestQueue('claude',     QUEUE.CLAUDE_DELAY_MS || 15000);
 
 // Backwards compat
 export const llmQueue = nvidiaQueue;
+
 
 

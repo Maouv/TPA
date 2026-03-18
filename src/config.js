@@ -29,11 +29,11 @@ export const GROQ = {
 // LLM — GEMINI
 // ============================================================
 export const GEMINI = {
-    MODEL:          process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    COOLDOWN_MS:    5 * 60 * 1000,  // 5 menit setelah rate limit
-    MAX_RETRIES:    2,
-    RETRY_DELAY_MS: 2000,
-    EMBEDDING_MODEL: 'models/gemini-embedding-001',
+    MODEL:           process.env.GEMINI_MODEL           || 'gemini-2.5-flash',
+    EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
+    COOLDOWN_MS:     5 * 60 * 1000,
+    MAX_RETRIES:     2,
+    RETRY_DELAY_MS:  2000,
 };
 
 // ============================================================
@@ -94,8 +94,19 @@ export const SKILLS = {
 // QUEUE
 // ============================================================
 export const QUEUE = {
-    GEMINI_DELAY_MS: 500,
-    NVIDIA_DELAY_MS: 500,
+    GEMINI_DELAY_MS:     500,
+    NVIDIA_DELAY_MS:     500,
+    GROQ_DELAY_MS:       300,
+    OPENROUTER_DELAY_MS: 500,
+    CLAUDE_DELAY_MS:     15000, // Claude free tier: 5 req/menit
+};
+
+// ============================================================
+// OPENROUTER
+// ============================================================
+export const OPENROUTER = {
+    API_URL:    'https://openrouter.ai/api/v1/chat/completions',
+    TIMEOUT_MS: 30000,
 };
 
 // ============================================================
@@ -116,7 +127,7 @@ export function validateConfig() {
     }
 
     // Warn kalau optional keys tidak ada
-    const optional = ['GROQ_API_KEY', 'NVIDIA_API_KEY_DEEPSEEK', 'NVIDIA_API_KEY_QWEN', 'ANTHROPIC_API_KEY'];
+    const optional = ['GROQ_API_KEY', 'NVIDIA_API_KEY_DEEPSEEK', 'NVIDIA_API_KEY_QWEN', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID'];
     const missingOptional = optional.filter(key => !process.env[key]);
     if (missingOptional.length > 0) {
         console.warn(`⚠️  Optional env vars tidak ditemukan (fallback terbatas): ${missingOptional.join(', ')}`);
@@ -124,4 +135,5 @@ export function validateConfig() {
 
     console.log('✅ Config validated.');
 }
+
 

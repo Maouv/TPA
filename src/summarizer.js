@@ -1,8 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GEMINI } from './config.js';
 
-const WORKSPACE_DIR = path.resolve('workspace');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const WORKSPACE_DIR = path.resolve(__dirname, '..', 'workspace');
 const MEMORY_DIR = path.join(WORKSPACE_DIR, 'memory');
 const MAIN_MEMORY_FILE = path.join(WORKSPACE_DIR, 'MEMORY.md');
 
@@ -48,7 +51,7 @@ export async function runSummarizer() {
 
     // Inisialisasi API terpisah untuk summarizer (agar tidak tercampur konteks utama)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: GEMINI.MODEL });
 
     const summaryPrompt = `Berikut adalah log percakapan antara User (user) dan Freyana (AI Agent) kemarin (${yesterdayDate}):\n\n--- [LOG PERCAKAPAN MENTAH] ---\n${oldLogContent}\n--- [END LOG] ---\n\nTugas lu:
 1. Analisis log tersebut dan buat ringkasan eksekutif dengan maksimal 10 poin penting.
@@ -77,4 +80,5 @@ export async function runSummarizer() {
         console.error(`[System] File log ${yesterdayDate}.md dipertahankan untuk dicoba lagi nanti.`);
     }
 }
+
 

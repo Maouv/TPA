@@ -73,6 +73,16 @@ export async function getSystemPrompt(forceRefresh = false, query = null) {
             prompt += `${directive}\n--- [BEGIN SKILL: ${skill.name}] ---\n${content}\n--- [END SKILL: ${skill.name}] ---\n\n`;
         } catch (e) {}
     }
+    // Load INDEX.md kalau query soal file
+    const fileKeywords = ['file', 'baca', 'tulis', 'hapus', 'ada', 'bikin', 'buat', 'index', 'list', 'workspace'];
+    const isFileQuery = loadAll || fileKeywords.some(k => queryLower.includes(k));
+    if (isFileQuery) {
+        try {
+            const indexContent = await fs.readFile(path.join(WORKSPACE_DIR, 'files', 'INDEX.md'), 'utf-8');
+            prompt += `Berikut adalah daftar file yang ADA di workspace/files/ saat ini:\n--- [BEGIN INDEX] ---\n${indexContent}\n--- [END INDEX] ---\n\n`;
+        } catch { /* index belum ada, skip */ }
+    }
+
     prompt += 'Sekarang kamu siap. Respond sebagai Freyana sesuai persona dan aturan di atas.';
 
     if (prompt.length > MAX_CONTEXT_CHARS) {
@@ -150,5 +160,6 @@ export async function getOwnerName() {
 
 // Export PROJECT_ROOT biar bisa dipakai module lain
 export { PROJECT_ROOT, WORKSPACE_DIR };
+
 
 

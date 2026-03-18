@@ -2,13 +2,14 @@
 // Shared logic untuk deteksi dan eksekusi skill tags
 // Dipakai oleh discord.js dan index.js — tidak ada duplikasi
 
-import { generateResponse } from '../llm.js';
-import { askClaude } from '../llm_claude.js';
-import { askDeepSeek, askQwen } from '../llm_nvidia.js';
+import { generateResponse } from '../llm/index.js';
+import { askClaude } from '../llm/index.js';
+import { askDeepSeek, askQwen } from '../llm/index.js';
 import { executeCommand } from './terminal/index.js';
 import { fetchWebPage } from './browser/index.js';
 import { readFile, writeFileWithPermission } from './filemanager/index.js';
 import { writeChatHistory, readChatHistory, invalidatePromptCache } from '../parser.js';
+import { indexAddFile, indexRemoveFile } from '../file_index.js';
 
 // ─── Tag Patterns ────────────────────────────────────────────
 export const TAGS = {
@@ -64,14 +65,26 @@ export async function executeSkills(aiResponse, systemPrompt, ownerName, { notif
         let cmdResult = '[SYSTEM_LOG] Operasi terminal dibatalkan oleh user (N).';
         if (isAllowed) {
             cmdResult = await executeCommand(commandToRun, true);
+            // Detect rm di workspace/files/ dan update index
+            const rmMatch = commandToRun.match(/rm\s+(?:-\w+\s+)?(.+)/);
+            if (rmMatch && !cmdResult.includes('[STDERR]') && !cmdResult.includes('[ERROR_CODE]')) {
+                const rmTarget = rmMatch[1].trim();
+                if (rmTarget.includes('workspace/files/') || rmTarget.includes('files/')) {
+                    indexRemoveFile(rmTarget).catch(() => {});
+                }
+            }
+            // Tampilkan output langsung ke Discord tanpa lewat LLM
+            const hasError = cmdResult.includes('[STDERR]') || cmdResult.includes('[ERROR_CODE]');
+            const label = hasError ? '⚠️ Output (ada error):' : '✅ Output:';
+            await notify(`${label}\n\`\`\`\n${cmdResult.slice(0, 1800)}\n\`\`\``);
         }
 
         await writeChatHistory('System', `[SYSTEM_TOOL_RESULT]:\n${cmdResult}`);
         const chatHistory = await readChatHistory();
 
         const followUpPrompt = isAllowed
-            ? '[System]: Perintah terminal sudah dieksekusi. Beritahu user hasilnya dengan singkat. JANGAN generate tag atau perintah baru apapun. Hanya konfirmasi hasil eksekusi.'
-            : `[System]: ${ownerName} menolak eksekusi perintah terminal (menekan 'N'). Itu adalah inisiatif LU sendiri sebagai AI, bukan permintaan ${ownerName}. JANGAN salahkan atau ceramahi ${ownerName}. JANGAN generate tag atau perintah baru. Cukup acknowledge penolakan dengan singkat dan tanya mau lanjut ngapain.`;
+            ? `[System]: Output terminal sudah ditampilkan ke user. Beri komentar SANGAT singkat (1 kalimat) atau tanya mau ngapain. STOP — jangan generate tag atau tool baru.`
+            : `[System]: ${ownerName} menolak eksekusi (N). Itu inisiatif LU sendiri. STOP — jangan generate tag baru. Acknowledge singkat.`;
 
         const finalResponse = await generateResponse(followUpPrompt, systemPrompt, chatHistory);
         await writeChatHistory('Freyana', finalResponse);
@@ -87,7 +100,7 @@ export async function executeSkills(aiResponse, systemPrompt, ownerName, { notif
 
         await writeChatHistory('System', `[SYSTEM_TOOL_RESULT]:\n${fetchResult}`);
         const chatHistory = await readChatHistory();
-        const followUpPrompt = '[System]: Berikut adalah isi teks dari URL yang lu baca tadi. Berikan rangkuman, jawaban, atau kesimpulan ke user berdasarkan teks tersebut.';
+        const followUpPrompt = `[System]: Berikut isi teks dari URL yang dibaca:\n\n${fetchResult.slice(0, 2000)}\n\nBerikan rangkuman atau jawaban ke user. STOP — jangan generate tag baru.`;
 
         const finalResponse = await generateResponse(followUpPrompt, systemPrompt, chatHistory);
         await writeChatHistory('Freyana', finalResponse);
@@ -102,7 +115,7 @@ export async function executeSkills(aiResponse, systemPrompt, ownerName, { notif
 
         await writeChatHistory('System', `[SYSTEM_TOOL_RESULT]:\n${fileResult}`);
         const chatHistory = await readChatHistory();
-        const followUpPrompt = `[System]: Berikut adalah isi file dari ${filePath}. Berikan rangkuman, jawaban, atau kesimpulan ke user berdasarkan teks tersebut.`;
+        const followUpPrompt = `[System]: Berikut isi file ${filePath}:\n\n${fileResult.slice(0, 2000)}\n\nBerikan rangkuman atau jawaban ke user. STOP — jangan generate tag baru.`;
 
         const finalResponse = await generateResponse(followUpPrompt, systemPrompt, chatHistory);
         await writeChatHistory('Freyana', finalResponse);
@@ -120,14 +133,18 @@ export async function executeSkills(aiResponse, systemPrompt, ownerName, { notif
         if (isAllowed) {
             writeResult = await writeFileWithPermission(filePath, fileContent, true);
             invalidatePromptCache();
+            // Update file index
+            if (!writeResult.includes('[FILE_ERROR]')) {
+                indexAddFile(filePath).catch(() => {});
+            }
         }
 
         await writeChatHistory('System', `[SYSTEM_TOOL_RESULT]:\n${writeResult}`);
         const chatHistory = await readChatHistory();
 
         const followUpPrompt = isAllowed
-            ? `[System]: File ${filePath} berhasil ditulis. Konfirmasi ke user dengan singkat. JANGAN baca file itu lagi, JANGAN generate tag apapun, JANGAN lakukan aksi lanjutan tanpa diminta.`
-            : `[System]: ${ownerName} menolak penulisan file ${filePath} (menekan 'N'). Itu inisiatif LU sendiri. JANGAN ceramahi ${ownerName}. JANGAN generate tag atau aksi baru. Acknowledge penolakan singkat dan tanya mau ngapain.`;
+            ? `[System]: File ${filePath} berhasil ditulis. Konfirmasi singkat ke user. STOP — jangan baca file, jangan generate tag atau tool apapun. Tunggu instruksi berikutnya.`
+            : `[System]: ${ownerName} menolak penulisan file (menekan 'N'). Itu inisiatif LU sendiri. STOP — jangan generate tag atau tool apapun. Acknowledge singkat, tanya mau ngapain.`;
 
         const finalResponse = await generateResponse(followUpPrompt, systemPrompt, chatHistory);
         await writeChatHistory('Freyana', finalResponse);
@@ -153,43 +170,32 @@ export async function executeSkills(aiResponse, systemPrompt, ownerName, { notif
         return;
     }
 
-    // ── ASK_DEEPSEEK ──────────────────────────────────────────
+    // ── ASK_DEEPSEEK — raw, no synthesize ────────────────────
     if (askDeepSeekMatch) {
         const dsContext  = askDeepSeekMatch[1] || '';
         const dsQuestion = askDeepSeekMatch[2].trim();
 
-        await notify('🧠 *Freyana lagi konsultasi ke DeepSeek...*');
+        await notify('🧠 *Nanya DeepSeek...*');
         const dsAnswer = await askDeepSeek(dsQuestion, dsContext);
         await writeChatHistory('DeepSeek', dsAnswer);
-        await notify(`**[DeepSeek]** ${dsAnswer}`);
-
-        const chatHistory = await readChatHistory();
-        const followUp = '[System]: DeepSeek sudah menjawab. Berikan kesimpulan atau langkah selanjutnya ke user.';
-        const finalResponse = await generateResponse(followUp, systemPrompt, chatHistory);
-        await writeChatHistory('Freyana', finalResponse);
-        await notify(stripTags(finalResponse));
+        await notify(`**[DeepSeek]**\n${dsAnswer}`);
         return;
     }
 
-    // ── ASK_QWEN ──────────────────────────────────────────────
+    // ── ASK_QWEN — raw, no synthesize ────────────────────────
     if (askQwenMatch) {
         const qwenContext  = askQwenMatch[1] || '';
         const qwenQuestion = askQwenMatch[2].trim();
 
-        await notify('🧬 *Freyana lagi konsultasi ke Qwen...*');
+        await notify('🧬 *Nanya Qwen...*');
         const qwenAnswer = await askQwen(qwenQuestion, qwenContext);
         await writeChatHistory('Qwen', qwenAnswer);
-        await notify(`**[Qwen]** ${qwenAnswer}`);
-
-        const chatHistory = await readChatHistory();
-        const followUp = '[System]: Qwen sudah menjawab. Berikan kesimpulan atau langkah selanjutnya ke user.';
-        const finalResponse = await generateResponse(followUp, systemPrompt, chatHistory);
-        await writeChatHistory('Freyana', finalResponse);
-        await notify(stripTags(finalResponse));
+        await notify(`**[Qwen]**\n${qwenAnswer}`);
         return;
     }
 
     // ── No tag — kirim langsung ───────────────────────────────
     await notify(aiResponse);
 }
+
 

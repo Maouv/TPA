@@ -5,7 +5,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getGroqStats } from './llm_groq.js';
+import { getGroqStats } from './llm/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const USAGE_FILE = path.resolve(__dirname, '..', 'workspace', 'usage.json');
@@ -104,4 +104,5 @@ export async function getUsageSummary() {
 
     return lines.join('\n');
 }
+
 

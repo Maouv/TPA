@@ -1,13 +1,10 @@
 // token_budget.js — Track request count dan token usage biar tidak kena rate limit
+import { TOKEN_BUDGET } from './config.js';
 
-const CHARS_PER_TOKEN = 4;
-const WINDOW_MS = 60 * 1000; // 1 menit rolling window
-
-// Gemini free tier limits
-const GEMINI_RPM_LIMIT = 10;      // 10 requests per menit (batas aman)
-const GEMINI_INPUT_LIMIT = 10000; // 10K input tokens per menit
-const BUDGET_RPM = Math.floor(GEMINI_RPM_LIMIT * 0.8);    // 8 RPM
-const BUDGET_INPUT = Math.floor(GEMINI_INPUT_LIMIT * 0.8); // 8000 tokens
+const CHARS_PER_TOKEN = TOKEN_BUDGET.CHARS_PER_TOKEN;
+const WINDOW_MS       = TOKEN_BUDGET.WINDOW_MS;
+const BUDGET_RPM      = Math.floor(TOKEN_BUDGET.RPM_LIMIT   * TOKEN_BUDGET.SAFETY_FACTOR);
+const BUDGET_INPUT    = Math.floor(TOKEN_BUDGET.INPUT_LIMIT  * TOKEN_BUDGET.SAFETY_FACTOR);
 
 let requests = [];   // [{timestamp}]
 let inputUsage = []; // [{timestamp, tokens}]
@@ -85,4 +82,5 @@ export function logBudgetStatus() {
     const { rpm, input, usedRPM, usedInput } = getRemainingBudget();
     console.log(`[Budget] RPM: ${usedRPM}/${BUDGET_RPM} used, ${rpm} remaining | Input tokens: ${usedInput}/${BUDGET_INPUT} used, ${input} remaining`);
 }
+
 

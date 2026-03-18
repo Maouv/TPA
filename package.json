@@ -1,29 +1,29 @@
 {
-  "name": "termux-agent",
-  "version": "1.0.0",
-  "description": "",
-  "main": "src/index.js",
+  "name": "freya",
+  "version": "2.0.0",
+  "description": "Freya — VPS-based AI agent running on Discord",
+  "main": "src/discord.js",
   "type": "module",
   "scripts": {
+    "start": "node src/discord.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["ai", "discord", "agent", "llm"],
+  "author": "Maouv",
   "license": "ISC",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "cheerio": "^1.2.0",
     "discord.js": "^14.25.1",
-    "dotenv": "^17.3.1",
-    "ethers": "^6.16.0",
-    "express": "^5.2.1"
+    "dotenv": "^17.3.1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Maouv/TPA.git"
+    "url": "git+https://github.com/Maouv/Freya.git"
   },
   "bugs": {
-    "url": "https://github.com/Maouv/TPA/issues"
+    "url": "https://github.com/Maouv/Freya/issues"
   },
-  "homepage": "https://github.com/Maouv/TPA#readme"
+  "homepage": "https://github.com/Maouv/Freya#readme"
 }
+
