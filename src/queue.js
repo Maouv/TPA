@@ -1,4 +1,4 @@
-// queue.js — Request queue biar tidak spam API bersamaan
+import { QUEUE } from './config.js';
 
 class RequestQueue {
     constructor(name, delayMs = 500) {
@@ -36,9 +36,10 @@ class RequestQueue {
 }
 
 // Queue terpisah untuk Gemini dan Nvidia biar tidak deadlock
-export const geminiQueue = new RequestQueue('gemini', 500);
-export const nvidiaQueue = new RequestQueue('nvidia', 500);
+export const geminiQueue = new RequestQueue('gemini', QUEUE.GEMINI_DELAY_MS);
+export const nvidiaQueue = new RequestQueue('nvidia', QUEUE.NVIDIA_DELAY_MS);
 
 // Backwards compat
 export const llmQueue = nvidiaQueue;
+
 

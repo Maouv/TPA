@@ -3,13 +3,14 @@ import { askDeepSeekAsFallback, askQwenAsFallback } from './llm_nvidia.js';
 import { geminiQueue } from './queue.js';
 import { trackRequest, isOverBudget, compressPrompt, logBudgetStatus } from './token_budget.js';
 import { generateResponseGroq, isGroqOverLimit } from './llm_groq.js';
+import { GEMINI } from './config.js';
+import { trackUsage } from './usage_tracker.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: GEMINI.MODEL });
 
-// Cooldown tracker untuk Gemini
 let geminiCooldownUntil = 0;
-const GEMINI_COOLDOWN_MS = 5 * 60 * 1000; // 5 menit
+const GEMINI_COOLDOWN_MS = GEMINI.COOLDOWN_MS;
 
 async function callGeminiWithRetry(fullPrompt, maxRetries = 2) {
     let delay = 2000;
@@ -48,8 +49,10 @@ async function _generateResponse(userMessage, systemPrompt, chatHistory) {
     if (!isGroqOverLimit()) {
         try {
             console.log('[System] Trying Groq...');
-            const groqResponse = await generateResponseGroq(systemPrompt, chatHistory, userMessage);
-            return groqResponse;
+            const result = await generateResponseGroq(systemPrompt, chatHistory, userMessage);
+            const { content, totalTokens } = result;
+            trackUsage('groq', totalTokens).catch(() => {});
+            return content;
         } catch (error) {
             if (error.message === 'TIMEOUT') {
                 console.log('[Groq] Timeout — fallback ke Gemini...');
@@ -74,6 +77,7 @@ async function _generateResponse(userMessage, systemPrompt, chatHistory) {
             try {
                 const geminiResponse = await callGeminiWithRetry(fullPrompt);
                 console.log('[Gemini] Response OK');
+                trackUsage('gemini', Math.ceil((fullPrompt.length + geminiResponse.length) / 4)).catch(() => {});
                 return geminiResponse;
             } catch (error) {
                 if (error.message === 'RATE_LIMIT') {
@@ -93,18 +97,25 @@ async function _generateResponse(userMessage, systemPrompt, chatHistory) {
     try {
         console.log('[System] Fallback ke Qwen...');
         const qwenResponse = await askQwenAsFallback(userMessage, systemPrompt, chatHistory);
-        if (!qwenResponse.includes('[QWEN_ERROR]')) return qwenResponse;
+        if (!qwenResponse.includes('[QWEN_ERROR]')) {
+            trackUsage('qwen', Math.ceil(qwenResponse.length / 4)).catch(() => {});
+            return qwenResponse;
+        }
         throw new Error(qwenResponse);
     } catch {
         // Layer 4: DeepSeek
         try {
             console.log('[System] Fallback ke DeepSeek...');
             const dsResponse = await askDeepSeekAsFallback(userMessage, systemPrompt, chatHistory);
-            if (!dsResponse.includes('[DEEPSEEK_ERROR]')) return dsResponse;
+            if (!dsResponse.includes('[DEEPSEEK_ERROR]')) {
+                trackUsage('deepseek', Math.ceil(dsResponse.length / 4)).catch(() => {});
+                return dsResponse;
+            }
             throw new Error(dsResponse);
         } catch {
-            return "⚠️ [SYSTEM_ERROR] Semua model kena limit. Tunggu bentar, Dafana.";
+            return "⚠️ [SYSTEM_ERROR] Semua model kena limit. Tunggu bentar.";
         }
     }
 }
+
 

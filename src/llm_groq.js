@@ -3,15 +3,17 @@
 // Format: OpenAI compatible
 
 import { nvidiaQueue } from './queue.js';
+import { GROQ } from './config.js';
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'moonshotai/kimi-k2-instruct';
-const MAX_OUTPUT_TOKENS = 1024;
-const TIMEOUT_MS = 30000;
+const GROQ_API_URL = GROQ.API_URL;
+const GROQ_MODEL   = GROQ.MODEL;
+const MAX_OUTPUT_TOKENS = GROQ.MAX_TOKENS;
+const TIMEOUT_MS   = GROQ.TIMEOUT_MS;
 
 // Track rate limit dari response headers
 let remainingRPD = 1000;
 let remainingTPM = 30000;
+let resetRequestsIn = null; // e.g. "2m59.56s"
 
 async function fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
@@ -54,9 +56,11 @@ async function _callGroq(systemPrompt, chatHistory, userMessage) {
     const tpm = response.headers.get('x-ratelimit-remaining-tokens');
     const limitRpd = response.headers.get('x-ratelimit-limit-requests');
     const limitTpm = response.headers.get('x-ratelimit-limit-tokens');
+    const resetReq = response.headers.get('x-ratelimit-reset-requests');
     if (rpd) remainingRPD = parseInt(rpd);
     if (tpm) remainingTPM = parseInt(tpm);
-    console.log(`[Groq] RPD: ${remainingRPD}/${limitRpd || 1000} remaining | TPM: ${remainingTPM}/${limitTpm || 30000} remaining`);
+    if (resetReq) resetRequestsIn = resetReq;
+    console.log(`[Groq] RPD: ${remainingRPD}/${limitRpd || 1000} remaining | TPM: ${remainingTPM}/${limitTpm || 30000} remaining | Reset in: ${resetRequestsIn}`);
 
     if (!response.ok) {
         const err = await response.json();
@@ -66,14 +70,29 @@ async function _callGroq(systemPrompt, chatHistory, userMessage) {
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || 'Respon kosong.';
+    const content = data.choices?.[0]?.message?.content || 'Respon kosong.';
+    const totalTokens = data.usage?.total_tokens || 0;
+    const promptTokens = data.usage?.prompt_tokens || 0;
+    const completionTokens = data.usage?.completion_tokens || 0;
+    console.log(`[Groq] Tokens — prompt: ${promptTokens} | completion: ${completionTokens} | total: ${totalTokens}`);
+    return { content, totalTokens };
 }
 
 export function isGroqOverLimit() {
     return remainingRPD <= 5 || remainingTPM <= 500;
 }
 
+export function getGroqStats() {
+    return { remainingRPD, remainingTPM, resetRequestsIn };
+}
+
 export async function generateResponseGroq(systemPrompt, chatHistory, userMessage) {
     return nvidiaQueue.add(() => _callGroq(systemPrompt, chatHistory, userMessage));
 }
+
+// Unwrap content + tokens dari result _callGroq
+export async function callGroqWithTokens(systemPrompt, chatHistory, userMessage) {
+    return nvidiaQueue.add(() => _callGroq(systemPrompt, chatHistory, userMessage));
+}
+
 

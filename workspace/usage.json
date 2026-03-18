@@ -1,0 +1,25 @@
+{
+  "date": "2026-03-18",
+  "models": {
+    "groq": {
+      "requests": 35,
+      "tokens": 66112
+    },
+    "gemini": {
+      "requests": 0,
+      "tokens": 0
+    },
+    "qwen": {
+      "requests": 0,
+      "tokens": 0
+    },
+    "deepseek": {
+      "requests": 0,
+      "tokens": 0
+    },
+    "claude": {
+      "requests": 0,
+      "tokens": 0
+    }
+  }
+}

@@ -3,10 +3,14 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { llmQueue } from './queue.js';
 
+// Hitung path sendiri — hindari circular import dengan parser.js
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const WORKSPACE_DIR = path.resolve(__dirname, '..', 'workspace');
+
 const EMBEDDING_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent';
-const WORKSPACE_DIR = path.resolve('workspace');
 const MEMORY_DIR = path.join(WORKSPACE_DIR, 'memory');
 const VECTOR_DIR = path.join(WORKSPACE_DIR, 'vectors');
 
@@ -153,4 +157,5 @@ function getTodayDate() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
 

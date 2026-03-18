@@ -3,12 +3,13 @@
 // Model 2: Qwen3.5 122B A10B (NVIDIA_API_KEY_QWEN)
 
 import { nvidiaQueue } from './queue.js';
+import { NVIDIA } from './config.js';
 
-const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const MAX_INPUT_CHARS = 4000;
-const MAX_OUTPUT_TOKENS = 1024;
-const DEEPSEEK_TIMEOUT_MS = 30000;
-const QWEN_TIMEOUT_MS = 30000;
+const NVIDIA_API_URL     = NVIDIA.API_URL;
+const MAX_INPUT_CHARS    = NVIDIA.MAX_INPUT_CHARS;
+const MAX_OUTPUT_TOKENS  = NVIDIA.MAX_OUTPUT_TOKENS;
+const DEEPSEEK_TIMEOUT_MS = NVIDIA.DEEPSEEK_TIMEOUT_MS;
+const QWEN_TIMEOUT_MS    = NVIDIA.QWEN_TIMEOUT_MS;
 
 const SYSTEM_PROMPT = `Kamu ADALAH Freyana. Jawab langsung sebagai Freyana dengan gaya galak, pedas, sarkas, to-the-point. Pakai Lo/Gw. Jangan sebut nama model kamu. Jangan gunakan tag apapun seperti <ASK_DEEPSEEK>, <ASK_QWEN>, atau tag lainnya dalam responmu. Langsung jawab pertanyaan user.`;
 
@@ -115,7 +116,7 @@ async function _askDeepSeek(question, context = '') {
     const apiKey = process.env.NVIDIA_API_KEY_DEEPSEEK;
     if (!apiKey) return '⚠️ [DEEPSEEK_ERROR] NVIDIA_API_KEY_DEEPSEEK tidak ditemukan.';
     try {
-        return await callNvidia(question, context, 'deepseek-ai/deepseek-v3.2', apiKey, DEEPSEEK_TIMEOUT_MS);
+        return await callNvidia(question, context, NVIDIA.DEEPSEEK_MODEL, apiKey, DEEPSEEK_TIMEOUT_MS);
     } catch (error) {
         console.log(`[Debug] DeepSeek error: ${error.name} — ${error.message}`);
         if (error.message === 'TIMEOUT') return '⚠️ [DEEPSEEK_ERROR] Timeout 30s — DeepSeek tidak respond.';
@@ -132,7 +133,7 @@ async function _askQwen(question, context = '') {
     const apiKey = process.env.NVIDIA_API_KEY_QWEN;
     if (!apiKey) return '⚠️ [QWEN_ERROR] NVIDIA_API_KEY_QWEN tidak ditemukan.';
     try {
-        return await callNvidia(question, context, 'qwen/qwen3.5-122b-a10b', apiKey, QWEN_TIMEOUT_MS);
+        return await callNvidia(question, context, NVIDIA.QWEN_MODEL, apiKey, QWEN_TIMEOUT_MS);
     } catch (error) {
         console.log(`[Debug] Qwen error: ${error.name} — ${error.message}`);
         if (error.message === 'TIMEOUT') return '⚠️ [QWEN_ERROR] Timeout 15s — Qwen tidak respond.';
@@ -149,7 +150,7 @@ export async function askDeepSeekAsFallback(userMessage, systemPrompt, chatHisto
     if (!apiKey) return '⚠️ [DEEPSEEK_ERROR] NVIDIA_API_KEY_DEEPSEEK tidak ditemukan.';
     return nvidiaQueue.add(async () => {
         try {
-            return await _callNvidiaAsFallback(userMessage, systemPrompt, chatHistory, 'deepseek-ai/deepseek-v3.2', apiKey, DEEPSEEK_TIMEOUT_MS);
+            return await _callNvidiaAsFallback(userMessage, systemPrompt, chatHistory, NVIDIA.DEEPSEEK_MODEL, apiKey, DEEPSEEK_TIMEOUT_MS);
         } catch (error) {
             console.log(`[Debug] DeepSeek fallback error: ${error.name} — ${error.message}`);
             if (error.message === 'TIMEOUT') return '⚠️ [DEEPSEEK_ERROR] Timeout 30s.';
@@ -163,7 +164,7 @@ export async function askQwenAsFallback(userMessage, systemPrompt, chatHistory) 
     if (!apiKey) return '⚠️ [QWEN_ERROR] NVIDIA_API_KEY_QWEN tidak ditemukan.';
     return nvidiaQueue.add(async () => {
         try {
-            return await _callNvidiaAsFallback(userMessage, systemPrompt, chatHistory, 'qwen/qwen3.5-122b-a10b', apiKey, QWEN_TIMEOUT_MS);
+            return await _callNvidiaAsFallback(userMessage, systemPrompt, chatHistory, NVIDIA.QWEN_MODEL, apiKey, QWEN_TIMEOUT_MS);
         } catch (error) {
             console.log(`[Debug] Qwen fallback error: ${error.name} — ${error.message}`);
             if (error.message === 'TIMEOUT') return '⚠️ [QWEN_ERROR] Timeout 15s.';
@@ -171,4 +172,5 @@ export async function askQwenAsFallback(userMessage, systemPrompt, chatHistory) 
         }
     });
 }
+
 

@@ -1,10 +1,10 @@
 # USER (PENGGUNA)
 
-- Nama: User.
-- Status: Manusia / Bos lu.
-- Peran: Developer (Sedang belajar ngoding, sering oprek Termux dan VPS Contabo, kadang suka eksperimen bahaya tanpa mikir panjang).
-- Catatan: Jangan biarkan User mengeksekusi perintah terminal destruktif.
-- Device: Android + Termux (bukan VPS, bukan Docker)
+- Nama: User
+- Status: Manusia / Bos lu
+- Peran: Developer — lagi belajar ngoding, aktif oprek VPS dan web3, suka eksperimen tanpa mikir panjang
+- Catatan: Jangan biarkan User eksekusi perintah destruktif. Kalau dia nekat, tolak dan jelasin risikonya.
+- Device utama: Android (Termux) untuk ngobrol, VPS Contabo Ubuntu untuk eksekusi
 - Node.js: v24
-- RAM: 8GB
-- LLM Provider: Google Gemini (free tier)
+- Stack yang aktif: Discord.js, Node.js, n8n, Nginx, Cloudflare Tunnel
+
